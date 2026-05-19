@@ -1,0 +1,79 @@
+import TabBar from "./components/TabBar";
+import ToolBar from "./components/ToolBar";
+import Panel from "./components/Panel";
+import StatusBar from "./components/StatusBar";
+import { useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { invoke } from "@tauri-apps/api/core";
+
+import { useStateContext } from "./contexts/StateContext";
+import NodeGraph from "./components/NodeGraph";
+
+function App() {
+    const { backEndState: backEndState, setBackEndState: setBackEndState, frontEndState: frontEndState, setFrontEndState: setFrontEndState } = useStateContext();
+
+    useEffect(() => {
+        invoke("log", { message: "App mounted, starting initialization..." });
+        invoke("splash_progress", { message: "Initializing..." });
+        // listner for window creation
+        const windowEventListener = listen(`open-window`, (event: any) => {
+            const window = new WebviewWindow(`${event.payload["title"]}`, event.payload);
+
+            window.show();
+        });
+        
+        invoke("splash_progress", { message: "Setting up state listeners..." });
+        const stateListner = listen("update_state", (event: any) => {
+            setBackEndState(event.payload);
+        });
+
+        const executionRunner = listen("execute_function", (event: any) => {
+            invoke(event.payload["function"], event.payload["args"]).then((res: any) => {});
+        });
+
+        invoke("splash_progress", { message: "Launching..." });
+        // tell the backend we're ready & get the initial state
+        invoke("ready").then((res: any) => {
+            if (res !== null) {
+                setBackEndState(res);
+            }
+            // close the splash screen once the app is ready
+            invoke("close_splashscreen");
+        });
+
+        return () => {
+            windowEventListener.then((f) => f());
+            stateListner.then((f) => f());
+            executionRunner.then((f) => f());
+        };
+    }, []);
+
+    useEffect(() => {
+        // FIXME temporary
+        console.log("Frontend state updated:", frontEndState);
+    }, [frontEndState]);
+
+    return (
+        <div className="wrapper w-screen h-screen overflow-hidden flex flex-col">
+            <div className="head flex-initial">
+                <TabBar />
+                <ToolBar />
+            </div>
+            <div className="content flex flex-auto ">
+                <Panel id="0" name="Nodes" />
+                <div className="node-graph flex-grow border-black border-l border-r">
+                    <NodeGraph />
+                </div>
+                <div className="ml-auto flex">
+                    <Panel id="1" name="Properties" />
+                </div>
+            </div>
+            <div className="foot flex-initial">
+                <StatusBar event="Ready." />
+            </div>
+        </div>
+    );
+}
+
+export default App;

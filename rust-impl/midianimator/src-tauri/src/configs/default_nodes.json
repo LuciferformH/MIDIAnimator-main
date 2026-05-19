@@ -1,0 +1,288 @@
+{
+    "nodes": [
+        {
+            "id": "get_midi_file",
+            "name": "Get MIDI File",
+            "description": "Gets a MIDI provided a path to the file with the file picker.",
+            "executor": "rust",
+            "realtime": true,
+            "handles": {
+                "inputs": [
+                    {
+                        "id": "file_path",
+                        "name": "File Path",
+                        "type": "String"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "id": "tracks",
+                        "name": "Tracks",
+                        "type": "Array<MIDITrack>"
+                    },
+                    {
+                        "id": "stats",
+                        "name": "MIDI Stats",
+                        "type": "String"
+                    }
+                ]
+            }
+        },
+
+        {
+            "id": "get_midi_track_data",
+            "name": "Get MIDI Track Data",
+            "description": "Gets a MIDI track's data from an array of MIDI Tracks.",
+            "executor": "rust",
+            "realtime": true,
+            "handles": {
+                "inputs": [
+                    {
+                        "id": "tracks",
+                        "name": "Tracks",
+                        "type": "Array<MIDITrack>"
+                    },
+                    {
+                        "id": "track_name",
+                        "name": "Track Name",
+                        "type": "String"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "id": "notes",
+                        "name": "Notes",
+                        "type": "Array<MIDINote>"
+                    },
+                    {
+                        "id": "control_change",
+                        "name": "Control Change",
+                        "type": "HashMap<u8, Array<MIDIEvent>>"
+                    },
+                    {
+                        "id": "pitchwheel",
+                        "name": "Pitchwheel",
+                        "type": "Array<MIDIEvent>"
+                    },
+                    {
+                        "id": "aftertouch",
+                        "name": "Aftertouch",
+                        "type": "Array<MIDIEvent>"
+                    }
+                ]
+            }
+        },
+
+        {
+            "id": "keyframes_from_object",
+            "name": "Keyframes from Object",
+            "description": "Get keyframes from an object in the scene.",
+            "executor": "rust",
+            "realtime": true,
+            "handles": {
+                "inputs": [
+                    {
+                        "id": "object_groups",
+                        "name": "ObjectGroups",
+                        "type": "Array<ObjectGroup>"
+                    },
+                    {
+                        "id": "object_group_name",
+                        "name": "Object Group Name",
+                        "type": "String"
+                    },
+                    {
+                        "id": "object_name",
+                        "name": "Object Name",
+                        "type": "String"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "id": "dyn_output",
+                        "name": "Dynamic Output",
+                        "type": "Dyn<Array<Keyframe>>"
+                    }
+                ]
+            }
+        },
+
+        {
+            "id": "animation_generator",
+            "name": "Animation Generator",
+            "description": "Create animation generators based on keyframed data",
+            "executor": "rust",
+            "realtime": true,
+            "handles": {
+                "inputs": [
+                    {
+                        "id": "name",
+                        "name": "Name",
+                        "type": "String"
+                    },
+                    {
+                        "id": "note_on_keyframes",
+                        "name": "Note On Keyframes",
+                        "type": "Array<Keyframe>"
+                    },
+                    {
+                        "id": "note_on_anchor_point",
+                        "name": "Note On Anchor Point",
+                        "type": "f64"
+                    },
+                    {
+                        "id": "note_off_keyframes",
+                        "name": "Note Off Keyframes",
+                        "type": "Array<Keyframe>"
+                    },
+                    {
+                        "id": "note_off_anchor_point",
+                        "name": "Note Off Anchor Point",
+                        "type": "f64"
+                    },
+                    {
+                        "id": "time_mapper",
+                        "name": "Time Mapper",
+                        "type": "String"
+                    },
+                    {
+                        "id": "amplitude_mapper",
+                        "name": "Amplitude Mapper",
+                        "type": "String"
+                    },
+                    {
+                        "id": "velocity_intensity",
+                        "name": "Velocity Intensity",
+                        "type": "f64"
+                    },
+                    {
+                        "id": "animation_overlap",
+                        "name": "Animation Overlap",
+                        "type": "String"
+                    },
+                    {
+                        "id": "animation_property",
+                        "name": "Animation Property",
+                        "type": "String"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "id": "generator",
+                        "name": "Animation Generator",
+                        "type": "AnimationGenerator"
+                    }
+                ]
+            }
+        },
+
+        {
+            "id": "assign_notes_to_objects",
+            "name": "Assign Notes to Objects",
+            "description": "Assign notes to objects in the scene",
+            "executor": "rust",
+            "realtime": true,
+            "handles": {
+                "inputs": [
+                    {
+                        "id": "object_groups",
+                        "name": "ObjectGroups",
+                        "type": "ObjectGroups"
+                    },
+                    {
+                        "id": "object_group_name",
+                        "name": "Object Group Name",
+                        "type": "String"
+                    },
+                    {
+                        "id": "midi_notes",
+                        "name": "Notes",
+                        "type": "Array<MIDINote>"
+                    },
+                    {
+                        "id": "generator",
+                        "name": "Animation Generator",
+                        "type": "AnimationGenerator"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "id": "object_map",
+                        "name": "Object Map",
+                        "type": "ObjectMap"
+                    }
+                ]
+            }
+        },
+
+        {
+            "id": "viewer",
+            "name": "Viewer",
+            "description": "Display node results",
+            "executor": "rust",
+            "realtime": true,
+            "handles": {
+                "inputs": [
+                    {
+                        "id": "data",
+                        "name": "Input",
+                        "type": "Any"
+                    }
+                ],
+                "outputs": []
+            }
+        },
+
+        {
+            "id": "scene_link",
+            "name": "Scene Link",
+            "description": "Provide access to the scene",
+            "executor": "rust",
+            "realtime": true,
+            "handles": {
+                "inputs": [],
+                "outputs": [
+                    {
+                        "id": "name",
+                        "name": "Name",
+                        "type": "String"
+                    },
+                    {
+                        "id": "object_groups",
+                        "name": "Object Groups",
+                        "type": "Array<ObjectGroup>"
+                    }
+                ]
+            }
+        },
+
+        {
+            "id": "evaluate_instrument",
+            "name": "Evaluate Instrument",
+            "description": "evaluate instrument",
+            "executor": "rust",
+            "realtime": false,
+            "handles": {
+                "inputs": [
+                    {
+                        "id": "object_map",
+                        "name": "Object Map",
+                        "type": "ObjectMap"
+                    },
+                    {
+                        "id": "midi_notes",
+                        "name": "MIDI Notes",
+                        "type": "Array<MIDINote>"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "id": "BlendKeyframes",
+                        "name": "BlendKeyframes",
+                        "type": "HashMap<String, Array<BlendKeyframe>>"
+                    }
+                ]
+            }
+        }
+    ]
+}

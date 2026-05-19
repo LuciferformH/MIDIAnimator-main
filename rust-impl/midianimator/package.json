@@ -1,0 +1,66 @@
+{
+  "name": "midianimator",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.12.2",
+    "@xyflow/react": "^12.0.1",
+    "autoprefixer": "^10.4.20",
+    "framer-motion": "^12.35.2",
+    "postcss": "^8.4.38",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1",
+    "rete": "^2.0.3",
+    "rete-area-plugin": "^2.0.4",
+    "rete-connection-plugin": "^2.0.1",
+    "rete-react-plugin": "^2.0.5",
+    "rete-render-utils": "^2.0.2",
+    "styled-components": "^6.1.8",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "bundle": "tauri build"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
+    "@types/react": "^18.3.2",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "postcss-cli": "^11.0.0",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.2.2",
+    "vite": "^7.3.1"
+  },
+  "overrides": {
+    "react-scripts": {
+      "typescript": "^5.4.5"
+    }
+  }
+}

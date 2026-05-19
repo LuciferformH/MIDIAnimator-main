@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* FIXME little hacky right now, will fix this later */
+.mac-traffic-lights-container {
+    padding-top: 1px;
+    padding-left: 8px;
+    padding-right: 12px;
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    justify-content: left;
+    gap: 8px;
+}
+
+.mac-traffic-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* FIXME eventually remove mac traffic lights */
+.mac-traffic-lights-container div {
+    background-color: lightgray;
+}
+
+.red {
+    background-color: #ff5f57;
+}
+
+.yellow {
+    background-color: #febc2e;
+}
+
+.green {
+    background-color: #28c840;
+}
+
+.helvetica {
+    font-family: "Helvetica", sans-serif;
+}
+
+.blender {
+    background: url(blender.png);
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+/* prevent overscroll bounce */
+body {
+    overflow: hidden;
+}
+
+#gtx-trans {
+    display: none;
+}
+
+img {
+    user-select: none;
+    pointer-events: none;
+}
+
+/* sorry */
+.react-flow__attribution {
+    display: none;
+}
+
+.node {
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    /* background: #303030; */
+    min-width: 200px;
+    max-width: 1000px;
+    background: #fcfcfc;
+    border: 1px solid #0f1010;
+    color: black;
+}
+
+.nodes-grid {
+    column-count: 2;
+    column-gap: 8px;
+}
+
+.node-container {
+    break-inside: avoid;
+    margin-bottom: 8px;
+}
+
+.node.preview {
+    /* enable dragging preview components */
+    cursor: grab;
+    position: relative;
+    transform: scale(0.5);
+    transform-origin: top left;
+    width: 200%;
+    display: block;
+}
+
+.node-wrapper {
+    display: contents;
+}
+
+/* all preview components inside should not be able to be selected. This is to "disable them" essentially */
+.node.preview * {
+    user-select: none;
+    pointer-events: none;
+}
+
+.node {
+    font-size: 12px;
+}
+
+.node .node-inner {
+    margin: 2px 0px 4px;
+}
+
+.node .node-field {
+    position: relative;
+    margin: 2px 12px;
+}
+
+.node-header {
+    color: #fff;
+    padding: 4px 8px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    box-shadow: inset 0 -1 rgba(0, 0, 0, 0.4);
+}
+
+.react-flow__node.selected .node {
+    border: 1px solid rgb(29, 198, 255);
+    -webkit-box-sizing: border-box !important;
+    box-sizing: border-box !important;
+}
+
+.react-flow__pane.draggable {
+    cursor: default;
+}
+
+.react-flow__resize-control.line.right {
+    border-right-width: 8px;
+    border-right-color: #ffffff00;
+}
+
+.react-flow__nodesselection-rect {
+    display: none;
+    cursor: default;
+}
+
+.status-bar {
+    border-left: none;
+    border-right: none;
+}
+
+* {
+    user-select: none;
+}

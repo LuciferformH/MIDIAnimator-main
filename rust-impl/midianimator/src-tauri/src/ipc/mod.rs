@@ -1,0 +1,325 @@
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::io::{BufReader, Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+use tokio::runtime::Runtime;
+use uuid::Uuid;
+
+use crate::blender::scene_data;
+use crate::blender::scene_data::compare_scene_data;
+use crate::command::javascript::evaluate_js_oneshot;
+use crate::scene_generics;
+use crate::state::{update_state, STATE};
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub struct Message {
+    pub sender: String,
+    pub message: String,
+    pub uuid: String,
+}
+
+struct Server {
+    clients: Arc<Mutex<Vec<TcpStream>>>,
+    message_map: Arc<Mutex<HashMap<String, mpsc::Sender<String>>>>,
+}
+
+static PORT: &str = "6577";
+
+// create a server instance
+// this is a lazy static variable, so it will only be created once
+// and will be shared across all threads
+// this is necessary because the server needs to be accessed across threads, and in other functions
+static SERVER: Lazy<Arc<Mutex<Server>>> = Lazy::new(|| {
+    // create a TCP listener on the specified port
+    let listener = TcpListener::bind(format!("127.0.0.1:{port}", port = PORT)).unwrap();
+    println!("MIDIAnimator IPC server started. Listening on port {:?}", PORT);
+
+    // create a server instance
+    let server = Server {
+        clients: Arc::new(Mutex::new(Vec::new())),
+        message_map: Arc::new(Mutex::new(HashMap::new())),
+    };
+    let server = Arc::new(Mutex::new(server));
+
+    // clone the server instance to be used in the thread
+    let server_clone = Arc::clone(&server);
+
+    thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    println!("New client connected {:?}", stream.peer_addr().unwrap());
+
+                    // we are connected to the client
+                    let mut state = STATE.lock().unwrap();
+                    state.connected = true;
+                    // also need to call get_client_info here to get the connected application info
+                    drop(state);
+                    update_state();
+
+                    let server = Arc::clone(&server_clone);
+                    let server_unwrapped = server.lock().unwrap();
+
+                    // lock the clients list and add the new client
+                    let mut clients = server_unwrapped.clients.lock().unwrap();
+
+                    clients.push(stream.try_clone().unwrap());
+                    drop(clients); // drop lock to avoid deadlock
+
+                    let server_clone = Arc::clone(&server);
+                    // when spawnning a new thread, get the client information as well
+                    rt.spawn(async move {
+                        request_client_info().await;
+
+                        // Check if we need validation BEFORE fetching new scene data
+                        let (needs_validation, saved_scene_data) = {
+                            let state = STATE.lock().unwrap();
+                            (!state.rf_instance.is_empty(), state.scene_data.clone())
+                        };
+
+                        if needs_validation {
+                            // Fetch fresh scene data
+                            let fresh_scene_data = scene_data::get_scene_data().await;
+
+                            // Compare old vs new
+                            let diff = compare_scene_data(&saved_scene_data, &fresh_scene_data);
+
+                            if diff.has_changes() {
+                                // Store pending data in state
+                                let mut state = STATE.lock().unwrap();
+                                state.pending_scene_data = Some(fresh_scene_data);
+                                state.execution_paused = true;
+                                drop(state);
+                                update_state();
+                                println!("Scene data changes detected, execution paused for validation.");
+                            } else {
+                                // No changes, just update normally
+                                let mut state = STATE.lock().unwrap();
+                                state.scene_data = fresh_scene_data;
+                                drop(state);
+                                update_state();
+                            }
+                        } else {
+                            // Normal connection, no validation needed
+                            request_scene_data().await;
+                        }
+                    });
+
+                    thread::spawn(move || {
+                        handle_client(stream, server_clone);
+                    });
+                }
+                Err(e) => {
+                    println!("Error: {}", e);
+                }
+            }
+        }
+    });
+    return server;
+});
+
+#[allow(unused_must_use)]
+pub fn start_server() {
+    SERVER.lock().unwrap();
+}
+
+pub async fn request_client_info() {
+    let script = r"import bpy
+def execute():
+    version = bpy.app.version_string
+    file_name = bpy.data.filepath.split('/')[-1]
+    return {'version': version, 'file_name': file_name}";
+
+    let result = match send_message(script.to_string()).await {
+        Some(result) => result.replace("'", "\""),
+        None => "".to_string(),
+    };
+
+    let map_object: HashMap<String, String> = serde_json::from_str(result.as_str()).unwrap();
+    let version = map_object.get("version").unwrap().to_string();
+    let file_name = map_object.get("file_name").unwrap().to_string();
+
+    let mut state = STATE.lock().unwrap();
+    state.connected_application = "blender".to_string();
+    state.connected_version = version;
+    state.connected_file_name = file_name;
+    drop(state);
+    update_state();
+}
+
+pub async fn request_scene_data() {
+    let result = scene_data::get_scene_data().await;
+    println!("Scene data: {:?}", result);
+    let mut state = STATE.lock().unwrap();
+    state.scene_data = result;
+    drop(state);
+    update_state();
+}
+
+// handle a client connection
+fn handle_client(stream: TcpStream, server: Arc<Mutex<Server>>) {
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let writer = stream;
+
+    // keep reading messages from the client until the connection is closed
+    let mut data = Vec::new();
+
+    loop {
+        let mut buf = [0; 4096]; // 4 KiB buffer
+
+        // need to loop over until we find the full `uuid` string with ending brace `}`.
+        // This is to ensure we have read the full message.
+        // if the message itself contains a uuid message, this is not a valid message.
+        match reader.read(&mut buf) {
+            Ok(0) => break, // connection closed
+            Ok(n) => {
+                data.extend_from_slice(&buf[..n]); // add the read bytes to data
+
+                // convert the accumulated data to a string and parse it as JSON
+                if let Ok(data_str) = String::from_utf8(data.clone()) {
+                    // similar code is in python add-on
+                    let check: Vec<&str> = data_str.split("\"}").filter(|s| !s.is_empty()).collect();
+                    if check.len() >= 2 && check.last() == Some(&"\n") && check[check.len() - 2].contains("\"uuid\":") {
+                        // valid msg, continue
+
+                        if let Ok(message) = serde_json::from_str::<Message>(&data_str) {
+                            // Check if this message is a response to a message we sent
+                            let tx = {
+                                let server_lock = server.lock().unwrap();
+                                let mut message_map = server_lock.message_map.lock().unwrap();
+                                message_map.remove(&message.uuid) // this gets the tx sender from send_message
+                            };
+
+                            if let Some(tx) = tx {
+                                // This is a response to a message we sent
+                                tx.send(message.message).unwrap();
+                            } else {
+                                // This is an unsolicited message (like a scene update)
+                                // Try to parse the message content to see if it's scene data
+                                let message_str = &message.message;
+
+                                // Check if the message contains scene data structure
+                                if message_str.contains("\"object_groups\"") {
+                                    // This looks like scene data
+                                    println!("Received scene update from Blender with UUID: {}", message.uuid);
+                                    println!("Received scene update from Blender with UUID: {}", message.message);
+
+                                    // Parse the scene data and update application state
+                                    if let Ok(scene_data) = serde_json::from_str::<HashMap<String, scene_generics::Scene>>(message_str) {
+                                        let mut state = STATE.lock().unwrap();
+                                        state.scene_data = scene_data;
+                                        drop(state);
+                                        update_state();
+                                        // tell front end to execute the graph
+                                        evaluate_js_oneshot("window.__TAURI__.invoke('execute_graph', { realtime: true });".to_string());
+                                    } else {
+                                        println!("Failed to parse scene data JSON");
+                                    }
+                                } else {
+                                    // Handle other types of unsolicited messages if needed
+                                    println!("Received unsolicited message: UUID={}", message.uuid);
+                                }
+                            }
+
+                            // Remove processed data
+                            data.clear();
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                println!("Error in handle_client(): {}", e);
+                data.clear();
+                break;
+            }
+        }
+
+        // allow a small delay to let other threads allocate the lock
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    // if disconnected, remove the client from the server
+    // clear all previous info
+    println!("client disconnected");
+    let mut state = STATE.lock().unwrap();
+    state.connected = false;
+    state.connected_application = "".to_string();
+    state.connected_version = "".to_string();
+    state.connected_file_name = "".to_string();
+    drop(state);
+    update_state();
+
+    let server = server.lock().unwrap();
+    let mut clients = server.clients.lock().unwrap();
+    clients.retain(|c| !c.peer_addr().unwrap().eq(&writer.peer_addr().unwrap()));
+}
+
+pub async fn send_message(message: String) -> Option<String> {
+    // create a message struct
+    let msg_struct = Message {
+        sender: "server".to_string(),
+        message,
+        uuid: Uuid::new_v4().to_string(),
+    };
+
+    let json_msg = serde_json::to_string(&msg_struct).unwrap() + "\n";
+
+    let server = SERVER.lock().unwrap();
+    // send the message to all clients
+    let mut clients = server.clients.lock().unwrap();
+    for client in clients.iter_mut() {
+        write_in_chunks(client, json_msg.as_bytes()).unwrap();
+    }
+    drop(clients);
+
+    // create a channel to receive the response, and insert it into the message_map
+    let (tx, rx) = mpsc::channel();
+    server.message_map.lock().unwrap().insert(msg_struct.uuid.clone(), tx);
+    drop(server);
+
+    // loop until a response is received or the timeout is reached
+    let mut durations: i8 = 0;
+    loop {
+        match rx.try_recv() {
+            Ok(recv_msg) => return Some(recv_msg),
+            Err(_) => {
+                if durations >= 50 {
+                    // no response found
+                    return None;
+                }
+                // wait for a response
+                thread::sleep(Duration::from_millis(100));
+                durations += 1;
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub fn send_message_without_response(message: Message) {
+    let json_msg = serde_json::to_string(&message).unwrap() + "\n";
+
+    let server = SERVER.lock().unwrap();
+    let mut clients = server.clients.lock().unwrap();
+    for client in clients.iter_mut() {
+        write_in_chunks(client, json_msg.as_bytes()).unwrap();
+    }
+
+    drop(clients); // drop lock to avoid deadlock
+    drop(server);
+}
+
+// function to write data in 4 KiB chunks
+fn write_in_chunks(stream: &mut TcpStream, data: &[u8]) -> std::io::Result<()> {
+    let chunk_size = 4096;
+    for chunk in data.chunks(chunk_size) {
+        stream.write_all(chunk)?;
+    }
+    Ok(())
+}
