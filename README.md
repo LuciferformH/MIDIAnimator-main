@@ -60,13 +60,6 @@ is a Blender add-on that converts MIDI files into synchronized 3D animations by 
 - **Supports multiple animation types** including keyframe, procedural, and physics-based animations
 - **Works with any 3D instrument model** - pianos, guitars, drums, synthesizers, and more
 
-### Demo
-
-Watch the technical demo to see MIDIAnimator in action:
-
-[![Radiant Ensemble Demo](https://img.youtube.com/vi/hW_21_5kVK8/maxresdefault.jpg)](https://www.youtube.com/watch?v=hW_21_5kVK8 "Radiant Ensemble - MIDIAnimator Demo")
-
----
 
 ## ✨ Features
 
